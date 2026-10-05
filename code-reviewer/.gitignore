@@ -1,0 +1,4 @@
+venv/
+reviews.db
+*_review.md
+__pycache__/
