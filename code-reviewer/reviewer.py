@@ -13,7 +13,7 @@ from rich.table import Table
 
 import history
 
-MODEL = "gemini-3.5-flash"
+MODEL = "gemini-3.5-flash-lite"
 MAX_ATTEMPTS = 4
 RETRY_CODES = {429, 500, 503, 504}
 MAX_FILES = 10  # safety limit so a big folder doesn't use up your free quota
