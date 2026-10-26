@@ -8,5 +8,30 @@
         "id": "A002",
         "title": "laptop",
         "description": "buy"
+    },
+    {
+        "id": "A003",
+        "title": "laptop damage",
+        "description": "the laptop fell from the table"
+    },
+    {
+        "id": "A004",
+        "title": "laptop",
+        "description": "laptop refused to connect to the internet"
+    },
+    {
+        "id": "A005",
+        "title": "laptop",
+        "description": "laptop refused to connect to WIFI"
+    },
+    {
+        "id": "A006",
+        "title": "mouse",
+        "description": "the mouse refused to click"
+    },
+    {
+        "id": "A007",
+        "title": "network issue",
+        "description": "the network is very very slow"
     }
 ]
