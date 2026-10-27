@@ -33,5 +33,35 @@
         "id": "A007",
         "title": "network issue",
         "description": "the network is very very slow"
+    },
+    {
+        "id": "A008",
+        "title": "mouse",
+        "description": "mouse is not clicking well"
+    },
+    {
+        "id": "A009",
+        "title": "chair",
+        "description": "the chair my partner was sitting got broken"
+    },
+    {
+        "id": "A010",
+        "title": "laptop",
+        "description": "laptop network issues"
+    },
+    {
+        "id": "A011",
+        "title": "keyboard",
+        "description": "malfunction"
+    },
+    {
+        "id": "A012",
+        "title": "laptop",
+        "description": "screen got cracked"
+    },
+    {
+        "id": "A013",
+        "title": "laptop",
+        "description": "screen got cracked"
     }
 ]
