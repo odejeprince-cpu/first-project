@@ -11,12 +11,42 @@ import requests
 
 FILE = "tickets.json"
 
-# Models the user can choose from: menu number -> (model name, short note)
-MODELS = {
-    "1": ("gemini-3.1-flash-lite", "fast and lightweight (recommended)"),
-    "2": ("gemini-3.5-flash-lite", "newer lightweight model"),
-    "3": ("gemini-3.8-flash", "smarter, but can be slower"),
-    "4": ("gemma-4-26b-a4b-it", "open model from Google"),
+# Each provider has its own key (read from an environment variable),
+# its own request style, and its own list of models.
+PROVIDERS = {
+    "1": {
+        "name": "Gemini (Google)",
+        "key_env": "GEMINI_API_KEY",
+        "style": "gemini",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        "models": [
+            ("gemini-3.1-flash-lite", "fast and lightweight (recommended)"),
+            ("gemini-3.5-flash-lite", "newer lightweight model"),
+            ("gemini-3.8-flash", "smarter, but can be slower"),
+            ("gemma-4-26b-a4b-it", "open model from Google"),
+        ],
+    },
+    "2": {
+        "name": "Groq",
+        "key_env": "GROQ_API_KEY",
+        "style": "openai",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "models": [
+            ("openai/gpt-oss-20b", "small open model, very fast (recommended)"),
+            ("openai/gpt-oss-120b", "larger open model, more capable"),
+            ("qwen/qwen3.8-27b", "Qwen model, balanced"),
+        ],
+    },
+    "3": {
+        "name": "OpenRouter",
+        "key_env": "OPENROUTER_API_KEY",
+        "style": "openai",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "models": [
+            ("openrouter/free", "automatically picks a free model (recommended)"),
+            ("nvidia/nemotron-3-ultra-550b-a55b:free", "large free model"),
+        ],
+    },
 }
 
 # ---------- Colours ----------
@@ -92,16 +122,8 @@ class Spinner:
 
 
 # ---------- AI ----------
-def get_ai_suggestions(ticket, model):
-    """Send the ticket to the chosen Gemini model.
-    Returns (suggestions, None) on success or (None, error_message) on failure."""
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        return None, "GEMINI_API_KEY is not set. Add it to ~/.zshrc and try again."
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-
-    prompt = (
+def build_prompt(ticket):
+    return (
         "You are an IT support assistant for a university campus helpdesk.\n"
         "A user submitted this support ticket:\n\n"
         f"Title: {ticket['title']}\n"
@@ -110,18 +132,42 @@ def get_ai_suggestions(ticket, model):
         "Reply as a short numbered list, one step per line, with no extra introduction."
     )
 
-    headers = {
-        "Content-Type": "application/json",
-        "x-goog-api-key": api_key,
-    }
-    body = {"contents": [{"parts": [{"text": prompt}]}]}
+
+def get_ai_suggestions(ticket, provider, model):
+    """Send the ticket to the chosen provider and model.
+    Returns (suggestions, None) on success or (None, error_message) on failure."""
+    key_env = provider["key_env"]
+    api_key = os.environ.get(key_env)
+    if not api_key:
+        return None, f"{key_env} is not set. Add it to ~/.zshrc, or choose another provider."
+
+    prompt = build_prompt(ticket)
+
+    if provider["style"] == "gemini":
+        url = provider["url"].format(model=model)
+        headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
+        body = {"contents": [{"parts": [{"text": prompt}]}]}
+    else:  # "openai" style, used by Groq and OpenRouter
+        url = provider["url"]
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        }
+        body = {"model": model, "messages": [{"role": "user", "content": prompt}]}
 
     try:
         response = requests.post(url, headers=headers, json=body, timeout=60)
         response.raise_for_status()
         data = response.json()
-        text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-        return text, None
+
+        if provider["style"] == "gemini":
+            text = data["candidates"][0]["content"]["parts"][0]["text"]
+        else:
+            text = data["choices"][0]["message"]["content"]
+
+        if not text or not text.strip():
+            raise ValueError("empty answer")
+        return text.strip(), None
 
     except requests.exceptions.ConnectionError:
         return None, "Could not connect. Please check your internet connection."
@@ -129,35 +175,51 @@ def get_ai_suggestions(ticket, model):
         return None, f"The request to {model} timed out. Try again or choose another model."
     except requests.exceptions.HTTPError as e:
         status = e.response.status_code
-        if status in (400, 403):
-            return None, "The API key was rejected. Please check your GEMINI_API_KEY."
+        if status in (400, 401, 403):
+            return None, f"The request was rejected. Check your {key_env} and the model name."
+        if status == 402:
+            return None, f"{provider['name']} needs credits or a payment method for this model."
         if status == 404:
             return None, f"Model '{model}' was not found. Try a different model."
         if status == 429:
-            return None, "Too many requests (free tier limit). Wait a moment and try again."
-        if status in (500, 503):
-            return None, f"{model} is unavailable or overloaded. Try another model."
+            return None, "Too many requests (free limit reached). Wait a moment and try again."
+        if status in (500, 502, 503):
+            return None, f"{model} is unavailable or overloaded. Try another model or provider."
         return None, f"The API request failed (status {status})."
-    except (KeyError, IndexError, ValueError):
+    except (KeyError, IndexError, TypeError, ValueError):
         return None, "The AI returned a response in an unexpected format."
     except requests.exceptions.RequestException as e:
         return None, f"Request failed: {e}"
 
 
-def choose_model():
-    """Ask the user which AI model to use. Returns the model name, or None to skip."""
-    print(paint("\nChoose an AI model:", BLUE))
-    for key, (name, note) in MODELS.items():
-        print(f"{key}. {name} - {paint(note, GRAY)}")
+def choose_ai():
+    """Ask the user for a provider, then a model. Returns (provider, model) or None to skip."""
+    print(paint("\nChoose an AI provider:", BLUE))
+    for key, p in PROVIDERS.items():
+        print(f"{key}. {p['name']}")
     print("0. Skip AI suggestions")
 
     while True:
-        choice = input(paint("Choose a model (0-4, press Enter for 1): ", GREEN)).strip() or "1"
+        choice = input(paint("Choose a provider (0-3, press Enter for 1): ", GREEN)).strip() or "1"
         if choice == "0":
             return None
-        if choice in MODELS:
-            return MODELS[choice][0]
-        print(paint("Invalid choice. Please enter a number from 0 to 4.", RED))
+        if choice in PROVIDERS:
+            provider = PROVIDERS[choice]
+            break
+        print(paint("Invalid choice. Please enter a number from 0 to 3.", RED))
+
+    models = provider["models"]
+    print(paint(f"\nChoose a {provider['name']} model:", BLUE))
+    for number, (name, note) in enumerate(models, start=1):
+        print(f"{number}. {name} - {paint(note, GRAY)}")
+
+    while True:
+        choice = input(
+            paint(f"Choose a model (1-{len(models)}, press Enter for 1): ", GREEN)
+        ).strip() or "1"
+        if choice.isdigit() and 1 <= int(choice) <= len(models):
+            return provider, models[int(choice) - 1][0]
+        print(paint(f"Invalid choice. Please enter a number from 1 to {len(models)}.", RED))
 
 
 # ---------- Tickets ----------
@@ -202,23 +264,31 @@ def create_ticket_with_suggestions():
     if ticket is None:
         return
 
-    model = choose_model()
-    if model is None:
-        print(paint("\nSkipped AI suggestions. Your ticket is saved.", GRAY))
-        return
+    while True:
+        choice = choose_ai()
+        if choice is None:
+            print(paint("\nSkipped AI suggestions. Your ticket is saved.", GRAY))
+            return
 
-    print()
-    spinner = Spinner(f"Getting AI suggestions from {model}...")
-    spinner.start()
-    suggestions, error = get_ai_suggestions(ticket, model)
+        provider, model = choice
 
-    if error:
-        spinner.stop(False, error)
-        print(paint("The ticket was saved, but no AI suggestions are available right now.", GRAY))
-    else:
+        print()
+        spinner = Spinner(f"Getting AI suggestions from {provider['name']} ({model})...")
+        spinner.start()
+        suggestions, error = get_ai_suggestions(ticket, provider, model)
+
+        if error:
+            spinner.stop(False, error)
+            again = input(paint("Try a different AI? (y/n): ", GREEN)).strip().lower()
+            if again == "y":
+                continue
+            print(paint("The ticket was saved, but no AI suggestions were shown.", GRAY))
+            return
+
         spinner.stop(True, "Got AI suggestions")
         print(paint("\nSuggestions:", PURPLE))
         print_yellow_box(suggestions)
+        return
 
 
 # ---------- Menu ----------

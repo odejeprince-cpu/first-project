@@ -63,5 +63,65 @@
         "id": "A013",
         "title": "laptop",
         "description": "screen got cracked"
+    },
+    {
+        "id": "A014",
+        "title": "keyboard",
+        "description": "the space bar key and enter keys are having serious issues"
+    },
+    {
+        "id": "A015",
+        "title": "MOUSE",
+        "description": "ITS NOT CLICKING WELL"
+    },
+    {
+        "id": "A016",
+        "title": "LAPTOP",
+        "description": "LAPTOP GOT BROKEN"
+    },
+    {
+        "id": "A017",
+        "title": "keyboard",
+        "description": "enter key and space bar keys are not working qwell"
+    },
+    {
+        "id": "A018",
+        "title": "network",
+        "description": "very slow network"
+    },
+    {
+        "id": "A019",
+        "title": "wifi",
+        "description": "slow network"
+    },
+    {
+        "id": "A020",
+        "title": "power down",
+        "description": "solar got off toqtally"
+    },
+    {
+        "id": "A021",
+        "title": "keyboard",
+        "description": "keyboard is getting very hot"
+    },
+    {
+        "id": "A022",
+        "title": "keyboard",
+        "description": "all the alphabet keys are not working"
+    },
+    {
+        "id": "A023",
+        "title": "mouse",
+        "description": "right button not clicking"
+    },
+    {
+        "id": "A024",
+        "title": "phone",
+        "description": "my screen went blank"
+    },
+    {
+        "id": "A025",
+        "title": "chair",
+        "description": "my chair got broken"
     }
 ]
